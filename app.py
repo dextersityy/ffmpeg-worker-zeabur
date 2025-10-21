@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_file
 import subprocess
 import os
 import time
+from youtube_transcript_api import YouTubeTranscriptApi
 
 app = Flask(__name__)
 
