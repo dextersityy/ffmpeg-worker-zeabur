@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_file
 import subprocess
 import os
 import time
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
 app = Flask(__name__)
 
@@ -19,36 +19,44 @@ def get_transcript():
         if not youtube_url:
             return jsonify({"error": "Missing YouTube URL"}), 400
 
-        # Ekstrak Video ID dari URL
-        # Ambil bagian setelah v= dan sebelum & (misal: dQw4w9WgXcQ)
+        # Ekstrak Video ID dari URL (Pastikan ini benar)
         video_id = youtube_url.split('v=')[-1].split('&')[0]
 
-        # Panggil library youtube-transcript-api
-        # fetch(..., languages=['id', 'en']) mencoba Bahasa Indonesia dulu, lalu Inggris
-        transcript_list = YouTubeTranscriptApi.get_transcript(
-            video_id, 
-            languages=['id', 'en']
-        )
-        
-        # Format transkrip menjadi satu teks besar dengan timestamp per baris
-        formatted_transcript = []
-        for segment in transcript_list:
-            # Mengubah 'start' (detik) menjadi format jam:menit:detik untuk referensi AI
-            start_time_seconds = segment['start']
-            
-            # Kita kirim semua data mentah ke n8n untuk diolah AI
-            formatted_transcript.append({
-                'start': start_time_seconds,
-                'text': segment['text']
+        try:
+            # Panggil library youtube-transcript-api
+            transcript_list = YouTubeTranscriptApi.get_transcript(
+                video_id, 
+                languages=['id', 'en']
+            )
+
+            formatted_transcript = []
+            for segment in transcript_list:
+                formatted_transcript.append({
+                    'start': segment['start'],
+                    'text': segment['text']
+                })
+
+            return jsonify({
+                "status": "success", 
+                "transcript": formatted_transcript
             })
 
-        return jsonify({
-            "status": "success", 
-            "transcript": formatted_transcript
-        })
+        except TranscriptsDisabled:
+            # Jika video memang tidak mengizinkan transkrip
+            return jsonify({"status": "fail", "error": "Transcripts are disabled for this video."}), 400
+        
+        except NoTranscriptFound:
+            # Jika transkrip tidak ada dalam bahasa ID/EN
+            return jsonify({"status": "fail", "error": "No transcript found in ID or EN for this video."}), 400
+
+        except Exception as e:
+            # Untuk error lain (misal ID tidak valid)
+            return jsonify({"status": "fail", "error": f"Internal API Error during fetching: {str(e)}", "video_id": video_id}), 500
 
     except Exception as e:
-        return jsonify({"error": "Could not fetch transcript", "details": str(e)}), 500
+        # Error pada level Flask/request
+        return jsonify({"status": "fail", "error": f"Bad Request or General Error: {str(e)}"}), 400
+
 
 # ENDPOINT 1: /cut-video (Dipanggil oleh n8n)
 @app.route('/cut-video', methods=['POST'])
