@@ -6,7 +6,7 @@ import time
 app = Flask(__name__)
 
 # Direktori untuk menyimpan klip (Pastikan kamu membuat folder ini di Zeabur)
-TEMP_DIR = "/app/clips"
+TEMP_DIR = "/data/clips"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 # ENDPOINT 1: /cut-video (Dipanggil oleh n8n)
