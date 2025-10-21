@@ -5,42 +5,35 @@ import time
 import math
 import logging
 
-# --- IMPORT LIBRARY YOUTUBE TRANSCRIPT YANG BENAR ---
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
+# --- PERBAIKAN KRITIS PADA IMPORT ---
+# Import fungsi yang dibutuhkan, bukan hanya objek kelas.
+import youtube_transcript_api 
+from youtube_transcript_api import TranscriptsDisabled, NoTranscriptFound
 
 app = Flask(__name__)
-# Menghilangkan logging default agar log Zeabur lebih bersih
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-# Direktori Tempat Menyimpan Klip yang Dipotong (Wajib: /data sesuai Volume Zeabur)
 TEMP_DIR = "/data/clips"
-# Buat folder jika belum ada (Zeabur harusnya sudah mount /data)
 try:
     os.makedirs(TEMP_DIR, exist_ok=True)
 except Exception as e:
     print(f"Error creating TEMP_DIR {TEMP_DIR}: {e}")
-    # Jika gagal, container mungkin akan crash. Pastikan volume Zeabur terpasang!
 
-# Fungsi Pembantu untuk Ekstraksi Video ID
 def extract_video_id(url):
     try:
-        # Mencari ID setelah v= dan sebelum & (jika ada)
         return url.split('v=')[-1].split('&')[0]
     except:
         return None
 
-# Fungsi Pembantu untuk mendapatkan URL Worker
 def get_worker_base_url(host):
-    # Menggunakan ZEABUR_URL jika tersedia (lebih stabil) atau host request
     zeabur_url = os.environ.get("ZEABUR_URL")
     if zeabur_url:
         return zeabur_url
-    return host.split(':')[0] # Ambil domain/IP tanpa port
+    return host.split(':')[0]
 
 # ----------------------------------------------------
-# ENDPOINT 1: /get-transcript
-# Dipanggil oleh n8n untuk mendapatkan transkrip.
+# ENDPOINT 1: /get-transcript (KODE SUDAH DIKOREKSI)
 # ----------------------------------------------------
 @app.route('/get-transcript', methods=['POST'])
 def get_transcript():
@@ -52,11 +45,10 @@ def get_transcript():
             return jsonify({"status": "fail", "error": "Invalid or missing YouTube URL."}), 400
 
         try:
-            # Panggil library youtube-transcript-api
-            # Menggunakan YouTubeTranscriptApi.get_transcript() secara statis
-            transcript_list = YouTubeTranscriptApi.get_transcript(
+            # --- PANGGILAN YANG BENAR: Panggil fungsi get_transcript() dari namespace utama ---
+            transcript_list = youtube_transcript_api.get_transcript(
                 video_id, 
-                languages=['id', 'en', 'auto'] # Prioritas: Indonesia, Inggris, Otomatis
+                languages=['id', 'en', 'auto'] 
             )
 
             formatted_transcript = []
@@ -84,8 +76,7 @@ def get_transcript():
         return jsonify({"status": "fail", "error": f"Kesalahan Permintaan Umum: {str(e)}"}), 400
 
 # ----------------------------------------------------
-# ENDPOINT 2: /cut-video
-# Dipanggil oleh n8n untuk memotong klip dan menyimpannya.
+# ENDPOINT 2: /cut-video (KODE TIDAK BERUBAH)
 # ----------------------------------------------------
 @app.route('/cut-video', methods=['POST'])
 def cut_video():
@@ -100,23 +91,20 @@ def cut_video():
 
         duration = float(end_time) - float(start_time)
         
-        # Membuat nama file unik
         unique_id = int(time.time() * 1000)
         output_filename = f"clip-{unique_id}.mp4"
         output_path = os.path.join(TEMP_DIR, output_filename)
 
-        # 1. Mendapatkan Stream URL dari YouTube menggunakan yt-dlp
         get_url_cmd = [
             "yt-dlp", youtube_url, "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]", 
             "--get-url", "--no-warnings"
         ]
         
-        stream_url = subprocess.check_output(get_url_cmd, text=True).strip().split('\n')[0] # Ambil URL pertama
+        stream_url = subprocess.check_output(get_url_cmd, text=True).strip().split('\n')[0]
 
-        # 2. Perintah FFmpeg Kritis: Memotong Langsung dari Stream URL
         cut_command = [
             "ffmpeg", 
-            "-ss", str(math.floor(float(start_time))), # Potong dari detik awal terdekat
+            "-ss", str(math.floor(float(start_time))), 
             "-i", stream_url,          
             "-t", str(duration),       
             "-c:v", "copy",            
@@ -127,7 +115,6 @@ def cut_video():
         
         subprocess.run(cut_command, check=True)
 
-        # Mengembalikan URL publik
         worker_base_url = get_worker_base_url(request.host)
         clip_public_url = f"https://{worker_base_url}/clips/{output_filename}"
 
@@ -143,8 +130,7 @@ def cut_video():
         return jsonify({"error": f"Kesalahan Internal Server: {str(e)}"}), 500
 
 # ----------------------------------------------------
-# ENDPOINT 3: /clips/<filename>
-# Dipanggil oleh TikTok (mode PULL) untuk menarik klip.
+# ENDPOINT 3: /clips/<filename> (Serve Clip)
 # ----------------------------------------------------
 @app.route('/clips/<filename>')
 def serve_clip(filename):
@@ -155,8 +141,7 @@ def serve_clip(filename):
         return jsonify({"error": "File not found"}), 404
 
 # ----------------------------------------------------
-# ENDPOINT 4: /cleanup-clip
-# Dipanggil oleh n8n setelah klip berhasil di-upload ke TikTok.
+# ENDPOINT 4: /cleanup-clip (Hapus File)
 # ----------------------------------------------------
 @app.route('/cleanup-clip', methods=['POST'])
 def cleanup_clip():
