@@ -1,3 +1,27 @@
+Ah, oke\! Kamu menggunakan `FROM python:3.8-slim` di `Dockerfile`. Itu *base image* yang lebih stabil dan umumnya tidak memiliki masalah *repository* seperti `buster`.
+
+Namun, ini membuat koreksi terakhir yang saya berikan menjadi sangat penting. Penggunaan `python:3.8-slim` tidak mengubah fakta bahwa *library* `youtube-transcript-api` harus di-*import* dan dipanggil dengan sintaks Python yang benar.
+
+Kesalahanmu saat ini (**`module 'youtube_transcript_api' has no attribute 'get_transcript'`**) adalah masalah pemanggilan, bukan masalah *image* dasar Python.
+
+-----
+
+## 🚀 Koreksi Final: `app.py` (Kunci Sukses)
+
+Saya akan memberikan kode yang sudah disesuaikan untuk `python:3.8-slim`. Fokus utama kita adalah pada baris **import** dan **pemanggilan fungsi** di `app.py`.
+
+**Instruksi Kritis:**
+
+1.  **HAPUS** semua konten file `app.py` Anda di GitHub.
+2.  **GANTI** dengan kode lengkap di bawah ini.
+3.  Lakukan **COMMIT** perubahan ini.
+4.  Tunggu Zeabur **selesai *re-deploy***.
+
+-----
+
+### Kode Python Final untuk `python:3.8-slim`: `app.py`
+
+```python
 from flask import Flask, request, jsonify, send_file
 import subprocess
 import os
@@ -5,10 +29,9 @@ import time
 import math
 import logging
 
-# --- PERBAIKAN KRITIS PADA IMPORT ---
-# Import fungsi yang dibutuhkan, bukan hanya objek kelas.
-import youtube_transcript_api 
-from youtube_transcript_api import TranscriptsDisabled, NoTranscriptFound
+# --- KOREKSI KRITIS IMPOR UNTUK MENGHINDARI CONFLICT ---
+# Import fungsi yang dibutuhkan secara langsung (get_transcript)
+from youtube_transcript_api import get_transcript, TranscriptsDisabled, NoTranscriptFound
 
 app = Flask(__name__)
 log = logging.getLogger('werkzeug')
@@ -33,10 +56,10 @@ def get_worker_base_url(host):
     return host.split(':')[0]
 
 # ----------------------------------------------------
-# ENDPOINT 1: /get-transcript (KODE SUDAH DIKOREKSI)
+# ENDPOINT 1: /get-transcript
 # ----------------------------------------------------
 @app.route('/get-transcript', methods=['POST'])
-def get_transcript():
+def get_transcript_endpoint(): # Nama fungsi diubah sedikit untuk menghindari konflik
     try:
         youtube_url = request.json.get('youtube_url')
         video_id = extract_video_id(youtube_url)
@@ -45,8 +68,9 @@ def get_transcript():
             return jsonify({"status": "fail", "error": "Invalid or missing YouTube URL."}), 400
 
         try:
-            # --- PANGGILAN YANG BENAR: Panggil fungsi get_transcript() dari namespace utama ---
-            transcript_list = youtube_transcript_api.get_transcript(
+            # --- PANGGILAN YANG BENAR ---
+            # Memanggil fungsi yang sudah di-import: get_transcript()
+            transcript_list = get_transcript(
                 video_id, 
                 languages=['id', 'en', 'auto'] 
             )
@@ -70,13 +94,13 @@ def get_transcript():
             return jsonify({"status": "fail", "error": "Transkrip tidak tersedia (manual/otomatis) dalam bahasa ID atau EN."}), 400
 
         except Exception as e:
-            return jsonify({"status": "fail", "error": f"Kesalahan API Internal: {str(e)}", "video_id": video_id}), 500
+            return jsonify({"status": "fail", "error": f"Kesalahan API Internal saat Fetching: {str(e)}", "video_id": video_id}), 500
 
     except Exception as e:
         return jsonify({"status": "fail", "error": f"Kesalahan Permintaan Umum: {str(e)}"}), 400
 
 # ----------------------------------------------------
-# ENDPOINT 2: /cut-video (KODE TIDAK BERUBAH)
+# ENDPOINT 2: /cut-video
 # ----------------------------------------------------
 @app.route('/cut-video', methods=['POST'])
 def cut_video():
@@ -164,3 +188,4 @@ def cleanup_clip():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
+```
