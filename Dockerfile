@@ -1,5 +1,5 @@
 # Menggunakan image Python yang ringan
-FROM python:3.8-slim-buster
+FROM python:3.8-slim
 
 # Memperbarui list paket dan menginstal FFmpeg serta yt-dlp
 RUN apt-get update && apt-get install -y \
