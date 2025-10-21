@@ -1,5 +1,5 @@
 # Menggunakan image Python yang ringan
-FROM python:3.11-slim
+FROM python:3.8-slim-buster
 
 # Memperbarui list paket dan menginstal FFmpeg serta yt-dlp
 RUN apt-get update && apt-get install -y \
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install Flask yt-dlp
 
 # Mengatur direktori kerja
+RUN mkdir -p /data/clips && chmod -R 777 /data/clips
 WORKDIR /app
 
 # Menyalin kode API kita ke dalam container
