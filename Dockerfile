@@ -20,6 +20,7 @@ COPY app.py .
 
 # Menyalin file konfigurasi lain
 COPY requirements.txt .
+RUN pip install -r requirements.txt
 
 # Mendefinisikan port yang akan di-expose (default Zeabur biasanya 8080)
 EXPOSE 8080
