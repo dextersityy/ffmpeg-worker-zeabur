@@ -10,6 +10,46 @@ app = Flask(__name__)
 TEMP_DIR = "/data/clips"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
+@app.route('/get-transcript', methods=['POST'])
+def get_transcript():
+    try:
+        data = request.json
+        youtube_url = data.get('youtube_url')
+        
+        if not youtube_url:
+            return jsonify({"error": "Missing YouTube URL"}), 400
+
+        # Ekstrak Video ID dari URL
+        # Ambil bagian setelah v= dan sebelum & (misal: dQw4w9WgXcQ)
+        video_id = youtube_url.split('v=')[-1].split('&')[0]
+
+        # Panggil library youtube-transcript-api
+        # fetch(..., languages=['id', 'en']) mencoba Bahasa Indonesia dulu, lalu Inggris
+        transcript_list = YouTubeTranscriptApi.get_transcript(
+            video_id, 
+            languages=['id', 'en']
+        )
+        
+        # Format transkrip menjadi satu teks besar dengan timestamp per baris
+        formatted_transcript = []
+        for segment in transcript_list:
+            # Mengubah 'start' (detik) menjadi format jam:menit:detik untuk referensi AI
+            start_time_seconds = segment['start']
+            
+            # Kita kirim semua data mentah ke n8n untuk diolah AI
+            formatted_transcript.append({
+                'start': start_time_seconds,
+                'text': segment['text']
+            })
+
+        return jsonify({
+            "status": "success", 
+            "transcript": formatted_transcript
+        })
+
+    except Exception as e:
+        return jsonify({"error": "Could not fetch transcript", "details": str(e)}), 500
+
 # ENDPOINT 1: /cut-video (Dipanggil oleh n8n)
 @app.route('/cut-video', methods=['POST'])
 def cut_video():
